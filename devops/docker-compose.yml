@@ -1,0 +1,132 @@
+version: "3.8"
+
+services:
+  lab-nginx: 
+    image: nginx:latest
+    container_name: lab-nginx
+    build:
+      context: lab-nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - /etc/letsencrypt/:/etc/letsencrypt/
+    ports:
+      - "80:80"
+      # - 22000:80
+    depends_on:
+      - laborotor-api
+      - laborotor-api-2
+    networks:
+      - laborotor-deb
+
+  laborotor-consumer-1:
+      container_name: 'laborotor-consumer-1'
+      build:
+        dockerfile: ./Consumer/Dockerfile
+        context: .
+      deploy:
+        resources:
+          limits:
+            memory: 1024M
+      ports:
+        - 8003:80
+      environment:
+        - ASPNETCORE_ENVIRONMENT=Development
+        - LOGS_PATH=/var/log/dev-laborotor-consumer-1
+      networks:
+        - laborotor-deb
+
+  laborotor-consumer-2:
+      container_name: 'laborotor-consumer-2'
+      build:
+        dockerfile: ./Consumer/Dockerfile
+        context: .
+      deploy:
+        resources:
+          limits:
+            memory: 1024M
+      ports:
+        - 8004:80
+      environment:
+        - ASPNETCORE_ENVIRONMENT=Development
+        - LOGS_PATH=/var/log/dev-laborotor-consumer-2
+      networks:
+        - laborotor-deb
+    
+  laborotor-db:
+    image: postgres:latest
+    restart: always
+    container_name: 'laborotor-db'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: laborotor
+    ports:
+      - 10001:5432
+    networks:
+      - laborotor-deb
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  laborotor-api:
+    container_name: 'laborotor-api'
+    depends_on:
+      - 'laborotor-rabbitmq'
+      - "laborotor-db"
+    build:
+      dockerfile: ./Laborotor/Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    ports:
+      - 8001:80
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - LOGS_PATH=/var/log/dev-laborotor-api
+    networks:
+      - laborotor-deb
+
+  laborotor-api-2:
+    container_name: 'laborotor-api-2'
+    depends_on:
+      - 'laborotor-rabbitmq'
+      - "laborotor-db"
+    build:
+      dockerfile: ./Laborotor/Dockerfile
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    ports:
+      - 8002:80
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - LOGS_PATH=/var/log/dev-laborotor-api-2
+    networks:
+      - laborotor-deb
+
+  laborotor-rabbitmq:
+    image: rabbitmq:management
+    container_name: laborotor-rabbitmq
+    hostname: rabbitmq
+    restart: always
+    volumes:
+      - ./RabbitMq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - laborotor-deb
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:15672"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres-data:
+
+networks:
+  laborotor-deb: {
+    driver: bridge
+  }
